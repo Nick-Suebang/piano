@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Piano C++ — démo WebAssembly</title>
+<meta name="description" content="Programme C++ qui lit une partition et génère un fichier WAV, compilé en WebAssembly pour tourner dans le navigateur.">
+<style>
+  :root {
+    --bg: #f6f3ee;
+    --surface: #ffffff;
+    --ink: #1d1b19;
+    --muted: #6b655d;
+    --line: #e2ddd4;
+    --accent: #b4532a;
+    --accent-ink: #ffffff;
+    --key-white: #fdfcfa;
+    --key-black: #23201d;
+    --key-on: #e07a4a;
+    --console-bg: #1d1b19;
+    --console-ink: #e9e4da;
+    --error: #d6573a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161412;
+      --surface: #201d1a;
+      --ink: #efe9df;
+      --muted: #a39b8f;
+      --line: #36312b;
+      --accent: #e07a4a;
+      --accent-ink: #1d1b19;
+      --key-white: #ece7de;
+      --key-black: #0e0d0c;
+      --key-on: #e07a4a;
+      --console-bg: #0f0e0d;
+      --console-ink: #e9e4da;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 40px 16px 64px; }
+  header p { color: var(--muted); margin: 6px 0 0; }
+  h1 { font-size: clamp(1.7rem, 4vw, 2.3rem); margin: 0; letter-spacing: -0.02em; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  .tag {
+    display: inline-block; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 8px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px; margin-top: 20px;
+  }
+
+  /* Clavier */
+  .clavier { position: relative; height: 150px; display: flex; user-select: none; }
+  .blanche {
+    flex: 1; background: var(--key-white); border: 1px solid var(--line); border-radius: 0 0 6px 6px;
+    margin-right: -1px; position: relative; transition: background 0.08s;
+  }
+  .blanche span {
+    position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+    font-size: 0.62rem; color: #8a8378;
+  }
+  .noire {
+    position: absolute; top: 0; height: 60%; background: var(--key-black);
+    border-radius: 0 0 4px 4px; z-index: 1; transition: background 0.08s;
+  }
+  .blanche.on, .noire.on { background: var(--key-on); }
+
+  /* Partition */
+  .outils { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  select, button {
+    font: inherit; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); padding: 8px 12px;
+  }
+  textarea {
+    width: 100%; min-height: 220px; resize: vertical; padding: 12px;
+    font: 14px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .jouer {
+    background: var(--accent); color: var(--accent-ink); border: none; font-weight: 600;
+    padding: 10px 22px; cursor: pointer;
+  }
+  .jouer:disabled { opacity: 0.5; cursor: wait; }
+  .actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; }
+  audio { flex: 1; min-width: 220px; height: 40px; }
+  a.telecharger { color: var(--accent); font-size: 0.9rem; }
+
+  /* Console */
+  pre.console {
+    background: var(--console-bg); color: var(--console-ink); border-radius: 10px;
+    padding: 12px 14px; margin: 14px 0 0; min-height: 3.2em; white-space: pre-wrap;
+    font: 13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace;
+  }
+  pre.console .err { color: var(--error); }
+
+  .aide { color: var(--muted); font-size: 0.92rem; }
+  .aide code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; }
+  .aide ul { padding-left: 20px; margin: 8px 0; }
+  footer { margin-top: 28px; color: var(--muted); font-size: 0.9rem; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="tag">C++ → WebAssembly</div>
+    <h1>Piano : de la partition au son</h1>
+    <p>Un programme C++ qui lit une partition texte, calcule la fréquence de chaque note et génère un fichier WAV
+      échantillon par échantillon. Il tourne ici directement dans ton navigateur.</p>
+  </header>
+
+  <section class="card">
+    <div class="clavier" id="clavier" aria-hidden="true"></div>
+  </section>
+
+  <section class="card">
+    <div class="outils">
+      <h2 style="margin:0;flex:1">Partition</h2>
+      <label for="exemples" class="aide" style="margin:0">Exemple :</label>
+      <select id="exemples"></select>
+    </div>
+    <textarea id="partition" spellcheck="false" aria-label="Partition"></textarea>
+    <div class="actions">
+      <button class="jouer" id="jouer" disabled>Chargement…</button>
+      <audio id="lecteur" controls></audio>
+      <a class="telecharger" id="telecharger" hidden download="partition.wav">Télécharger le WAV</a>
+    </div>
+    <pre class="console" id="console" aria-live="polite"></pre>
+  </section>
+
+  <section class="card aide">
+    <h2 style="color:var(--ink)">Format de la partition</h2>
+    <ul>
+      <li>Première ligne : le tempo, <code>60</code> ou <code>120</code> battements par minute.</li>
+      <li>Puis une note par ligne : <code>octave NOTE altération durée</code>, par exemple <code>3 DO # 1</code>.</li>
+      <li>Notes : <code>DO RE MI FA SO LA SI</code>. Altération : <code>#</code> (dièse), <code>b</code> (bémol) ou <code>-</code> (aucune).</li>
+      <li>Durée en temps : <code>1</code> = noire, <code>2</code> = blanche, <code>0.5</code> = croche. <code>3 LA - 1</code> = 440 Hz.</li>
+    </ul>
+    <h2 style="color:var(--ink);margin-top:16px">Comment ça marche</h2>
+    <p>Le même code C++ que la version console (<code>main.cpp</code>, <code>biblioWAV.cpp</code>) est compilé avec
+      Emscripten en WebAssembly. Au clic, la page lui passe le texte ; il calcule les fréquences
+      (440 × 2<sup>n/12</sup>), écrit l’en-tête RIFF/WAVE et les échantillons 16 bits stéréo à 44,1 kHz,
+      puis la page joue le fichier obtenu. Les messages affichés ci-dessus sont les <code>cout</code> du programme.</p>
+  </section>
+
+  <footer>
+    Projet de Nick Suebang · <a href="https://github.com/Nick-Suebang/piano">Code source sur GitHub</a>
+  </footer>
+</main>
+
+<script>
+  const EXEMPLES = {
+    "Au clair de la lune": `120
+3 DO - 1
+3 DO - 1
+3 DO - 1
+3 RE - 1
+3 MI - 2
+3 RE - 2
+3 DO - 1
+3 MI - 1
+3 RE - 1
+3 RE - 1
+3 DO - 4
+3 RE - 1
+3 RE - 1
+3 RE - 1
+3 RE - 1
+2 LA - 2
+2 LA - 2
+3 RE - 1
+3 DO - 1
+2 SI - 1
+2 LA - 1
+2 SO - 4
+3 DO - 1
+3 DO - 1
+3 DO - 1
+3 RE - 1
+3 MI - 2
+3 RE - 2
+3 DO - 1
+3 MI - 1
+3 RE - 1
+3 RE - 1
+3 DO - 4`,
+    "Frère Jacques": `120
+3 DO - 1
+3 RE - 1
+3 MI - 1
+3 DO - 1
+3 DO - 1
+3 RE - 1
+3 MI - 1
+3 DO - 1
+3 MI - 1
+3 FA - 1
+3 SO - 2
+3 MI - 1
+3 FA - 1
+3 SO - 2
+3 SO - 0.5
+3 LA - 0.5
+3 SO - 0.5
+3 FA - 0.5
+3 MI - 1
+3 DO - 1
+3 SO - 0.5
+3 LA - 0.5
+3 SO - 0.5
+3 FA - 0.5
+3 MI - 1
+3 DO - 1
+3 DO - 1
+2 SO - 1
+3 DO - 2
+3 DO - 1
+2 SO - 1
+3 DO - 2`,
+    "Gamme chromatique": `120
+3 DO - 0.5
+3 DO # 0.5
+3 RE - 0.5
+3 RE # 0.5
+3 MI - 0.5
+3 FA - 0.5
+3 FA # 0.5
+3 SO - 0.5
+3 SO # 0.5
+3 LA - 0.5
+3 SI b 0.5
+3 SI - 0.5
+4 DO - 2`
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const zone = $("partition"), bouton = $("jouer"), lecteur = $("lecteur");
+  const sortie = $("console"), lien = $("telecharger"), choix = $("exemples");
+
+  // Exemples
+  for (const nom of Object.keys(EXEMPLES)) choix.add(new Option(nom, nom));
+  zone.value = EXEMPLES[choix.value];
+  choix.addEventListener("change", () => { zone.value = EXEMPLES[choix.value]; });
+
+  // Clavier : de DO octave 2 à SI octave 4 (notation du programme : octave 3 contient LA 440 Hz)
+  const MIDI_MIN = 48, MIDI_MAX = 83;
+  const NOIRES = new Set([1, 3, 6, 8, 10]);
+  const touches = new Map();
+  (function dessinerClavier() {
+    const clavier = $("clavier");
+    const nbBlanches = [...Array(MIDI_MAX - MIDI_MIN + 1).keys()]
+      .filter((i) => !NOIRES.has((MIDI_MIN + i) % 12)).length;
+    let blanche = 0;
+    for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
+      const el = document.createElement("div");
+      if (NOIRES.has(m % 12)) {
+        el.className = "noire";
+        const largeur = 100 / nbBlanches;
+        el.style.width = (largeur * 0.62) + "%";
+        el.style.left = (blanche * largeur - largeur * 0.31) + "%";
+      } else {
+        el.className = "blanche";
+        if (m % 12 === 0) el.innerHTML = `<span>DO${Math.floor(m / 12) - 2}</span>`;
+        blanche++;
+      }
+      clavier.appendChild(el);
+      touches.set(m, el);
+    }
+  })();
+
+  // Console : reçoit les cout / cerr du programme C++
+  function ecrire(texte, erreur) {
+    const ligne = document.createElement("div");
+    if (erreur || texte.startsWith("Erreur")) ligne.className = "err";
+    ligne.textContent = texte;
+    sortie.appendChild(ligne);
+  }
+
+  // Animation du clavier pendant la lecture
+  let notes = [], debuts = [], toucheActive = null, urlWav = null;
+  function allumer(m) {
+    if (toucheActive === m) return;
+    if (toucheActive !== null) touches.get(toucheActive)?.classList.remove("on");
+    toucheActive = m;
+    if (m !== null) touches.get(m)?.classList.add("on");
+  }
+  function animer() {
+    const t = lecteur.currentTime * 1000;
+    let i = debuts.findIndex((d, k) => t >= d && t < d + notes[k].duree);
+    allumer(i >= 0 ? notes[i].midi : null);
+    if (!lecteur.paused && !lecteur.ended) requestAnimationFrame(animer);
+    else allumer(null);
+  }
+  lecteur.addEventListener("play", () => requestAnimationFrame(animer));
+
+  function jouer() {
+    sortie.textContent = "";
+    const taille = Module.ccall("piano_generer", "number", ["string"], [zone.value]);
+    if (taille < 0) return;
+
+    const adresse = Module.ccall("piano_donnees", "number", [], []);
+    const wav = Module.HEAPU8.slice(adresse, adresse + taille);
+
+    const n = Module.ccall("piano_nombre_notes", "number", [], []);
+    notes = []; debuts = [];
+    let t = 0;
+    for (let i = 0; i < n; i++) {
+      const f = Module.ccall("piano_frequence", "number", ["number"], [i]);
+      const duree = Module.ccall("piano_duree", "number", ["number"], [i]);
+      notes.push({ midi: Math.round(69 + 12 * Math.log2(f / 440)), duree });
+      debuts.push(t);
+      t += duree;
+    }
+
+    if (urlWav) URL.revokeObjectURL(urlWav);
+    urlWav = URL.createObjectURL(new Blob([wav], { type: "audio/wav" }));
+    lecteur.src = urlWav;
+    lien.href = urlWav;
+    lien.hidden = false;
+    lecteur.play();
+  }
+  bouton.addEventListener("click", jouer);
+
+  // Configuration du module Emscripten (avant le chargement de piano.js)
+  var Module = {
+    print: (t) => ecrire(t, false),
+    printErr: (t) => ecrire(t, true),
+    onRuntimeInitialized: () => {
+      bouton.disabled = false;
+      bouton.textContent = "▶ Jouer";
+    }
+  };
+</script>
+<script src="piano.js"></script>
+</body>
+</html>
