@@ -49,7 +49,7 @@ dans le navigateur : on écrit une partition, on clique sur « Jouer », le prog
 
 - `web/piano_web.cpp` : point d'entrée web (remplace `main()` et `PlaySound`)
 - `web/index.html` : la page (clavier animé, éditeur de partition, lecteur audio)
-- `web/build.sh` : compile vers `dist/` (`emcc` requis)
+- `web/build.sh` : compile vers `dist/` (`em++` requis)
 - `.github/workflows/pages.yml` : compile et publie automatiquement sur GitHub Pages à chaque push sur `main`
 
 ## Installation et Prérequis
