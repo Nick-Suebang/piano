@@ -1,14 +1,17 @@
-#pragma once
+﻿#pragma once
 
 #include <istream>
-#include <ostream>
+#include <string>
+#include <vector>
 
-// Nombre maximal de notes dans une partition
-constexpr int NOTES_MAX{ 1000 };
+#include "note.h"
 
-// Lit une partition (tempo puis notes) depuis un flux.
-// Remplit frequences et dureesEnMillisecondes, et met le nombre de notes dans taille.
-bool lirePartitionFlux(std::istream& fichier, float frequences[], float dureesEnMillisecondes[], int& taille);
-
-// Génère un fichier WAV complet dans le flux (défini dans biblioWAV.cpp)
-void GenererWAV(std::ostream& memoire, float frequences[], float dureesMillisecondes[], int n);
+// Format d'une partition :
+//   - première ligne : le tempo, 60 ou 120 battements par minute ;
+//   - puis une note par ligne : <octave> <NOTE> <altération> <durée en temps>
+//     NOTE : DO RE MI FA SO LA SI ; altération : # (dièse), b (bémol) ou - (aucune).
+//   Exemple : « 3 LA - 1 » est un LA à 440 Hz qui dure un temps.
+//
+// Lit une partition complète et calcule la fréquence et la durée de chaque note.
+// En cas de problème, retourne false et explique la cause dans « erreur ».
+bool lirePartition(std::istream& source, std::vector<Note>& notes, std::string& erreur);

@@ -1,1 +1,11 @@
+# Visual Studio
+.vs/
+*.user
+Debug/
+Release/
+x64/
+Win32/
+
+# Compilation
 dist/
+*.wav

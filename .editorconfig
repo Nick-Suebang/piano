@@ -1,0 +1,14 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# UTF-8 avec BOM : Visual Studio lit alors correctement les accents des messages.
+[*.{cpp,h}]
+charset = utf-8-bom
+
+[*.{yml,yaml}]
+indent_size = 2

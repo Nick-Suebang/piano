@@ -1,10 +1,11 @@
-# Compile le programme C++ en WebAssembly et publie la démo sur GitHub Pages
+# Vérifie le code à chaque pull request, et publie la démo web sur GitHub Pages
 # à chaque push sur main (ou à la main depuis l'onglet Actions).
-name: Démo web (GitHub Pages)
+name: Vérification et démo web
 
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -13,11 +14,22 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  console:
+    name: Version console (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compiler (avertissements traités comme des erreurs)
+        run: g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -O2 main.cpp partition.cpp biblioWAV.cpp -o piano
+      - name: Tester
+        run: bash tests/tester.sh ./piano
+
+  web:
+    name: Version web (WebAssembly)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +41,9 @@ jobs:
           path: dist
 
   deploy:
-    needs: build
+    name: Publication GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: [console, web]
     runs-on: ubuntu-latest
     environment:
       name: github-pages
