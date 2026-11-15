@@ -1,8 +1,10 @@
-
+﻿
 #include <iostream>
 #include <string>
 #include <fstream>
+#include <cmath>
 #include "biblioWAV.h"
+#include "partition.h"
 using namespace std;
 
 void calculerFrequences(int octaves, const string& notes, const string& alterations, float durees, float frequences[], int taille)
@@ -53,14 +55,9 @@ void calculerDurees(float durees, const int tempo, float dureeMillisecondes[1000
     dureeMillisecondes[taille] = (durees * 60000) / tempo;
 }
 
-bool lirePartition(const string NomFichier, float frequences[], float dureesEnMillisecondes[], int& taille)
+// Lit une partition depuis n'importe quel flux (fichier sur le PC, texte de la page web).
+bool lirePartitionFlux(istream& fichier, float frequences[], float dureesEnMillisecondes[], int& taille)
 {
-    ifstream fichier(NomFichier);
-    if (!fichier)
-    {
-        cout << "Erreur : Impossible d'ouvrir le fichier." << endl;
-        return false;
-    }
     string contenu{ "" };
     int octaves{ 0 };
     string notes{ "" };
@@ -70,10 +67,10 @@ bool lirePartition(const string NomFichier, float frequences[], float dureesEnMi
     int tempo{ stoi(contenu) };
     if (tempo != 60 && tempo != 120)
     {
-        cout << "Erreur : Le tempo de la partition doit �tre soit 60 bpm, soit 120 bpm." << endl;
+        cout << "Erreur : Le tempo de la partition doit être soit 60 bpm, soit 120 bpm." << endl;
         return false;
     }
-    while (fichier >> octaves >> notes >> alterations >> durees)
+    while (taille < NOTES_MAX && fichier >> octaves >> notes >> alterations >> durees)
     {
         calculerFrequences(octaves, notes, alterations, durees, frequences, taille);
         calculerDurees(durees, tempo, dureesEnMillisecondes, taille);
@@ -82,6 +79,19 @@ bool lirePartition(const string NomFichier, float frequences[], float dureesEnMi
     return true;
 }
 
+bool lirePartition(const string NomFichier, float frequences[], float dureesEnMillisecondes[], int& taille)
+{
+    ifstream fichier(NomFichier);
+    if (!fichier)
+    {
+        cout << "Erreur : Impossible d'ouvrir le fichier." << endl;
+        return false;
+    }
+    return lirePartitionFlux(fichier, frequences, dureesEnMillisecondes, taille);
+}
+
+// La version web (web/piano_web.cpp) a son propre point d'entrée : pas de main().
+#ifndef __EMSCRIPTEN__
 int main(int argc, char* argv[])
 {
     setlocale(LC_ALL, "");
@@ -91,8 +101,8 @@ int main(int argc, char* argv[])
         return 1;
     }
     int taille{ 0 };
-    float frequences[1000];
-    float dureesMillisecondes[1000];
+    float frequences[NOTES_MAX];
+    float dureesMillisecondes[NOTES_MAX];
     if (!lirePartition(argv[1], frequences, dureesMillisecondes, taille))
     {
         return 2;
@@ -101,3 +111,4 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+#endif

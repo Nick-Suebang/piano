@@ -40,6 +40,18 @@ Exemple de partition:
 - Stéréo (2 canaux)
 - Amplitude maximale: 32760
 
+## Démo web (WebAssembly)
+
+Le même code C++ est compilé avec [Emscripten](https://emscripten.org) en WebAssembly pour tourner
+dans le navigateur : on écrit une partition, on clique sur « Jouer », le programme génère le WAV et la page le joue.
+
+👉 **[Essayer la démo](https://nick-suebang.github.io/piano/)**
+
+- `web/piano_web.cpp` : point d'entrée web (remplace `main()` et `PlaySound`)
+- `web/index.html` : la page (clavier animé, éditeur de partition, lecteur audio)
+- `web/build.sh` : compile vers `dist/` (`emcc` requis)
+- `.github/workflows/pages.yml` : compile et publie automatiquement sur GitHub Pages à chaque push sur `main`
+
 ## Installation et Prérequis
 
 ### Matériel
