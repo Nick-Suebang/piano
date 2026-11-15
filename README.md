@@ -1,186 +1,123 @@
-# Projet de Traitement Audio WAV
+# Piano : de la partition au son
 
-## Description
-Ce projet est une application console en C++ permettant de manipuler des fichiers audio au format WAV. Il permet de générer des sons à partir d'une partition musicale textuelle et de les sauvegarder au format WAV ou de les jouer directement.
+Application C++ qui lit une partition musicale au format texte, calcule la fréquence de chaque note
+et génère un fichier audio WAV échantillon par échantillon. Sous Windows, le son est joué directement ;
+sinon (ou sur demande), il est écrit dans un fichier `.wav`.
 
-## Structure du Projet
-- `biblioWAV.h` : Fichier d'en-tête contenant les déclarations des fonctions de manipulation WAV
-- `biblioWAV.cpp` : Implémentation des fonctions de génération et lecture WAV
-- `main.cpp` : Programme principal gérant la lecture des partitions et la génération sonore
+👉 **[Essayer la démo en ligne](https://nick-suebang.github.io/piano/)** : le même code C++, compilé en WebAssembly.
 
-## Fonctionnalités Détaillées
+## Structure du projet
 
-### Génération de Sons
-- Génération de sons sinusoïdaux purs
-- Contrôle de la fréquence (hauteur du son)
-- Contrôle de la durée des notes
-- Fondu d'entrée/sortie (fade in/out) pour éviter les clics
-- Stéréo (2 canaux)
+| Fichier | Rôle |
+| --- | --- |
+| `note.h` | La structure `Note` : une fréquence (Hz) et une durée (ms) |
+| `partition.h` / `partition.cpp` | Lecture et validation d'une partition, calcul des fréquences et des durées |
+| `biblioWAV.h` / `biblioWAV.cpp` | Génération du WAV, écriture dans un fichier, lecture sur la carte son (Windows) |
+| `main.cpp` | Programme console : arguments, messages d'erreur, choix entre jouer et écrire |
+| `web/` | Version web : point d'entrée Emscripten (`piano_web.cpp`), page (`index.html`), script de compilation |
+| `partitions/` | Exemples de partitions |
 
-### Format de Partition
-Le programme accepte des fichiers texte contenant:
-- Tempo en BPM (battements par minute)
-- Notes au format: `<octave> <note> <altération> <durée>`
-  - Octave: numéro de l'octave (ex: 4)
-  - Note: do, ré, mi, fa, sol, la, si
-  - Altération: # (dièse), b (bémol) ou - (naturel)
-  - Durée: 1 (ronde), 2 (blanche), 4 (noire), etc.
+La lecture de la partition ne fait aucun affichage : elle renvoie les notes ou un message d'erreur,
+et c'est l'appelant (console ou page web) qui décide comment le montrer. C'est ce qui permet
+de réutiliser exactement le même code dans la version console et la version web.
 
-Exemple de partition:
+## Format de partition
+
 ```
-120 // Tempo
-4 do - 4  // do4 noire
-4 ré # 8  // ré#4 croche
-4 mi - 2  // mi4 blanche
+120
+3 DO - 1
+3 RE # 0.5
+3 MI - 2
 ```
 
-### Manipulation WAV
-- Format PCM 16 bits
-- Fréquence d'échantillonnage: 44100 Hz
-- Stéréo (2 canaux)
-- Amplitude maximale: 32760
+- **Première ligne** : le tempo, `60` ou `120` battements par minute.
+- **Puis une note par ligne** : `<octave> <NOTE> <altération> <durée>`
+  - Octave : nombre entier ; l'octave 3 contient le LA à 440 Hz.
+  - Note : `DO RE MI FA SO LA SI` (en majuscules).
+  - Altération : `#` (dièse), `b` (bémol) ou `-` (aucune).
+  - Durée en temps : `1` = noire, `2` = blanche, `0.5` = croche.
+- Les lignes vides sont ignorées. Une ligne mal formée ou une note inconnue arrête la lecture
+  avec un message qui indique le numéro de la ligne.
+
+La fréquence suit le tempérament égal : `440 × 2^(octave − 3 + (demi-tons − 9) / 12)`.
+
+## Compilation et exécution
+
+### Windows (Visual Studio)
+
+1. Ouvrir `Piano.sln` dans Visual Studio 2022 ou plus récent (C++17).
+2. Choisir la configuration (Debug/Release, x64 recommandé), puis compiler (F7).
+3. Lancer :
+
+```bash
+Piano.exe partitions/au_clair_de_la_lune.txt
+```
+
+```bash
+Piano.exe partitions/au_clair_de_la_lune.txt sortie.wav
+```
+
+Le premier exemple joue la partition ; le second l'écrit dans `sortie.wav`.
+
+### Linux / macOS
+
+```bash
+g++ -std=c++17 -Wall -Wextra -O2 main.cpp partition.cpp biblioWAV.cpp -o piano
+```
+
+```bash
+./piano partitions/au_clair_de_la_lune.txt sortie.wav
+```
+
+Sans fichier de sortie, le son est écrit dans `partition.wav`.
+
+### Codes de sortie
+
+| Code | Signification |
+| --- | --- |
+| 0 | Succès |
+| 1 | Mauvais nombre d'arguments |
+| 2 | Fichier introuvable ou partition invalide |
+| 3 | Impossible d'écrire le fichier WAV |
 
 ## Démo web (WebAssembly)
 
-Le même code C++ est compilé avec [Emscripten](https://emscripten.org) en WebAssembly pour tourner
-dans le navigateur : on écrit une partition, on clique sur « Jouer », le programme génère le WAV et la page le joue.
+`partition.cpp` et `biblioWAV.cpp` sont compilés avec [Emscripten](https://emscripten.org) avec un point
+d'entrée propre au web (`web/piano_web.cpp`) à la place de `main.cpp`. La page passe le texte de la
+partition au C++, récupère le WAV généré et le joue en animant le clavier.
 
-👉 **[Essayer la démo](https://nick-suebang.github.io/piano/)**
+- `web/build.sh` : compile vers `dist/` (`em++` requis).
+- `.github/workflows/pages.yml` : à chaque pull request, compile et teste la version console sous Linux
+  et compile la version web ; à chaque push sur `main`, publie la démo sur GitHub Pages.
 
-- `web/piano_web.cpp` : point d'entrée web (remplace `main()` et `PlaySound`)
-- `web/index.html` : la page (clavier animé, éditeur de partition, lecteur audio)
-- `web/build.sh` : compile vers `dist/` (`em++` requis)
-- `.github/workflows/pages.yml` : compile et publie automatiquement sur GitHub Pages à chaque push sur `main`
+## Format WAV généré
 
-## Installation et Prérequis
+PCM 16 bits, stéréo, 44 100 Hz. Chaque note est une onde sinusoïdale avec un fondu d'entrée et de sortie
+(5 % de sa durée) pour éviter les clics.
 
-### Matériel
-- PC avec Windows (7/8/10/11)
-- Carte son compatible Windows
-- Haut-parleurs ou écouteurs
-
-### Logiciel
-- Visual Studio 2022
-- Windows SDK 10.0+
-- Compilateur supportant C++11
-
-## Compilation et Exécution
-
-1. Cloner le dépôt ou télécharger les sources
-2. Ouvrir `Nick_Suebang-TP02-2333658.sln` dans Visual Studio
-3. Sélectionner la configuration:
-   - Debug/Release
-   - x64 recommandé
-4. Compiler (F7)
-5. Exécuter (F5)
-
-## Utilisation
-
-### Ligne de Commande
-```bash
-Nick_Suebang-TP02-2333658.exe <fichier_partition.txt>
-```
-
-### Fonctions Principales
-```cpp
-// Jouer une séquence de notes
-void JouerSons(float frequences[], float dureesMillisecondes[], int n);
-
-// Sauvegarder en WAV
-bool EcrireSons(float frequences[], float dureesMillisecondes[], int n, 
-                const string& nomFichierSortie);
-
-// Lire une partition
-bool lirePartition(const string NomFichier, float frequences[], 
-                  float dureesEnMillisecondes[], int& taille);
-```
-
-## Format WAV en Détail
-
-### En-tête RIFF (12 octets)
 ```
 Offset  Taille  Description
 0-3     4       "RIFF"
-4-7     4       Taille totale - 8
+4-7     4       Taille du fichier - 8
 8-11    4       "WAVE"
-```
-
-### En-tête Format (24 octets)
-```
 12-15   4       "fmt "
-16-19   4       Taille section format (16)
+16-19   4       Taille du bloc format (16)
 20-21   2       Format audio (1 = PCM)
-22-23   2       Nombre canaux (2)
-24-27   4       Fréquence échantillonnage (44100)
-28-31   4       Débit binaire moyen
-32-33   2       Bloc d'alignement
+22-23   2       Nombre de canaux (2)
+24-27   4       Fréquence d'échantillonnage (44100)
+28-31   4       Octets par seconde (176400)
+32-33   2       Octets par bloc (4)
 34-35   2       Bits par échantillon (16)
-```
-
-### Section Données
-```
 36-39   4       "data"
-40-43   4       Taille des données
-44+     ...     Données audio (échantillons)
+40-43   4       Taille des données audio
+44+     ...     Échantillons (gauche, droite, gauche, droite…)
 ```
 
-## Traitement du Signal
+## Crédits
 
-### Génération des Sons
-1. Calcul de la fréquence selon la note
-2. Génération d'une onde sinusoïdale
-3. Application d'une enveloppe (fade in/out)
-4. Quantification 16 bits
-
-### Paramètres Audio
-- Fréquence d'échantillonnage: 44100 Hz
-- Résolution: 16 bits
-- Canaux: 2 (stéréo)
-- Volume maximal: 32760 (-0.5 dB)
-
-## Gestion des Erreurs
-
-### Validation des Entrées
-- Vérification du fichier partition
-- Validation du format des notes
-- Contrôle des valeurs de fréquence
-- Vérification des durées
-
-### Messages d'Erreur
-- Fichier introuvable
-- Format de partition invalide
-- Erreur d'écriture WAV
-- Erreur de lecture
-
-## Performances et Limitations
-
-### Capacités
-- Jusqu'à 1000 notes par partition
-- Fichiers WAV jusqu'à 4 GB
-- Fréquences: 20 Hz à 20000 Hz
-
-### Limitations
-- Format PCM uniquement
-- Pas de compression
-- Pas d'effets audio complexes
-- Mémoire limitée par RAM disponible
-
-## Support et Contact
-
-### Signalement de Bugs
-1. Vérifier la dernière version
-2. Documenter le problème
-3. Créer une issue sur GitHub
-
-### Contribution
-1. Fork du projet
-2. Branche feature/bugfix
-3. Pull Request avec description
-
-### Contact
-- GitHub: [profil]
-- Email: [adresse]
+La bibliothèque WAV (`biblioWAV`) est basée sur le code fourni par Stephane Duguay (2024).
 
 ## Licence
-Projet sous licence MIT
+
+Projet sous licence MIT.
 Copyright (c) 2024 Nick Suebang
