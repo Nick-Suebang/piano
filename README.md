@@ -319,6 +319,15 @@ Les limites suivantes viennent de l'énoncé d'origine ou de choix volontairemen
 Pistes d'évolution : silences (`R` pour *rest*), tempo libre, plusieurs pistes mixées, formes d'onde
 (carré, dent de scie) et enveloppe ADSR, import de fichiers MIDI.
 
+## Auteur et contact
+
+**Nick Suebang** (Nick Hariel Teponno Suebang), technicien en informatique et développeur web et mobile à Rimouski (QC).
+
+- Portfolio : [nicksuebang.com](https://nicksuebang.com)
+- Courriel : [contact@nicksuebang.com](mailto:contact@nicksuebang.com)
+- GitHub : [@Nick-Suebang](https://github.com/Nick-Suebang)
+- LinkedIn : [Nick Hariel Teponno Suebang](https://www.linkedin.com/in/nick-hariel-teponno-suebang-6a8875292/)
+
 ## Crédits et licence
 
 - La bibliothèque WAV (`biblioWAV`) est basée sur le code fourni par **Stephane Duguay** (2024) dans le cadre du cours.
